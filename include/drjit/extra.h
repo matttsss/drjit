@@ -666,6 +666,15 @@ extern DRJIT_EXTRA_EXPORT uint64_t ad_coop_vec_pack_matrices(
 /// Unpack a cooperative vector into its components
 extern DRJIT_EXTRA_EXPORT void ad_coop_vec_unpack(uint64_t index, uint32_t n, uint64_t *out);
 
+/// Extract a subset of elements into a new, smaller cooperative vector
+extern DRJIT_EXTRA_EXPORT uint64_t ad_coop_vec_extract(uint64_t index,
+                                                       const uint32_t *indices,
+                                                       uint32_t n);
+
+/// Extract a single element from a cooperative vector as a regular variable
+extern DRJIT_EXTRA_EXPORT uint64_t ad_coop_vec_extract_single(uint64_t index,
+                                                              uint32_t i);
+
 /// Perform a unary operation on a cooperative vector
 extern DRJIT_EXTRA_EXPORT uint64_t ad_coop_vec_unary_op(JitOp op, uint64_t a0);
 

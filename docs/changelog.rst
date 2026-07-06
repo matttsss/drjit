@@ -10,6 +10,13 @@ DrJit 1.5.0 (unreleased)
 
 - Added :py:func:`dr.median() <median>`, which computes the median along one
   or more axes.
+- Cooperative vectors (:py:class:`drjit.nn.CoopVec`) now support indexing and
+  slicing via ``__getitem__``: integer indices extract a single component as a
+  regular Dr.Jit array, while slices efficiently produce a new, smaller
+  cooperative vector backed by a dedicated IR operation on all backends
+  (LLVM, CUDA/OptiX, Metal). Both forms trace a single fused operation
+  (independent of the vector width) and are differentiable in forward and
+  reverse mode.
 
 DrJit 1.4.0 (June 25, 2026)
 ---------------------------

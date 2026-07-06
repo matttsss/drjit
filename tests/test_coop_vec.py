@@ -809,3 +809,88 @@ def test28_pack_matrices_mixed(t):
 
     assert dr.all(TensorXf16(A.grad) == TensorXf16([[2, 3], [2, 3]]))
 
+
+
+@pytest.test_arrays('jit,shape=(*),float16,-diff', 'jit,shape=(*),float32,-diff')
+def test29_getitem(t):
+    skip_if_coopvec_not_supported(t)
+
+    # Test integer and slice-based indexing of cooperative vectors
+    x = nn.CoopVec(t(1, 2), t(3, 4), t(5, 6), t(7, 8))
+
+    # Integer indexing returns the element type, negative indices wrap
+    y = x[1]
+    assert type(y) is t and dr.allclose(y, t(3, 4))
+    assert dr.allclose(x[-1], t(7, 8))
+
+    # Slice indexing returns a smaller cooperative vector
+    s = x[1:3]
+    assert isinstance(s, nn.CoopVec) and len(s) == 2
+    s0, s1 = s
+    dr.schedule(s0, s1)
+    assert dr.allclose(s0, t(3, 4)) and dr.allclose(s1, t(5, 6))
+
+    # Strided and reversed slices
+    assert dr.allclose(x[::2][1], t(5, 6))
+    r = list(x[::-1])
+    for a, b in zip(r, reversed(list(x))):
+        assert dr.allclose(a, b)
+
+    # Error handling
+    with pytest.raises(IndexError, match="index out of range"):
+        x[4]
+    with pytest.raises(RuntimeError, match="does not address any elements"):
+        x[1:1]
+
+
+@pytest.test_arrays('jit,shape=(*),float16,diff', 'jit,shape=(*),float32,diff')
+def test30_getitem_fwd_grad(t):
+    skip_if_coopvec_not_supported(t)
+
+    # Test that forward gradients propagate through __getitem__
+    a, b, c = t(1), t(2), t(3)
+    dr.enable_grad(a, b, c)
+    x = nn.CoopVec(a, b, c)
+
+    y = x[1]
+    z = x[1:3][0]  # also element 1, via a slice
+    a.grad = 10
+    b.grad = 20
+    c.grad = 30
+    dr.forward_to(y, z)
+    dr.schedule(y.grad, z.grad)
+    assert y.grad == 20
+    assert z.grad == 20
+
+
+@pytest.test_arrays('jit,shape=(*),float16,diff', 'jit,shape=(*),float32,diff')
+def test31_getitem_bwd_grad(t):
+    skip_if_coopvec_not_supported(t)
+
+    # Test that backward gradients propagate through __getitem__, including
+    # duplicate references to the same element
+    a, b, c = t(1), t(2), t(3)
+    dr.enable_grad(a, b, c)
+    x = nn.CoopVec(a, b, c)
+
+    y = x[0] + x[1] * 2 + x[1:2][0] * 3 + x[::-1][0] * 4 + (x * 2)[0] * 0.5
+
+    dr.backward(y)
+    dr.schedule(a.grad, b.grad, c.grad)
+    assert a.grad == 2
+    assert b.grad == 5  # 2 (int index) + 3 (slice)
+    assert c.grad == 4  # via reversed slice
+
+
+@pytest.test_arrays('jit,shape=(*),float16,-diff', 'jit,shape=(*),float32,-diff')
+def test32_getitem_literal(t):
+    skip_if_coopvec_not_supported(t)
+
+    # Indexing a uniform literal cooperative vector takes a special code path
+    x = nn.CoopVec(t(7), t(7), t(7))
+    y = x[1]
+    assert type(y) is t and dr.allclose(y, 7)
+
+    s = x[0:2]
+    assert isinstance(s, nn.CoopVec) and len(s) == 2
+    assert dr.allclose(s[1], 7)

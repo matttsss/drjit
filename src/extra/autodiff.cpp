@@ -4470,6 +4470,200 @@ void ad_coop_vec_unpack(uint64_t index, uint32_t n, uint64_t *out) {
     }
 }
 
+class CoopVecExtract : public dr::detail::CustomOpBase {
+public:
+    CoopVecExtract(const uint32_t *indices, uint32_t n, uint32_t source_length)
+        : m_count(n), m_source_length(source_length) {
+        m_indices = (uint32_t *) malloc(sizeof(uint32_t) * n);
+        memcpy(m_indices, indices, sizeof(uint32_t) * n);
+    }
+
+    ~CoopVecExtract() {
+        free(m_indices);
+        lock_guard guard(state.lock);
+        for (ADIndex index : m_output_indices)
+            ad_var_dec_ref_int(index, state[index]);
+    }
+
+    void forward() override {
+        lock_guard guard(state.lock);
+
+        const ADVariable *v = state[m_input_indices[0]];
+        if (!v->grad.valid())
+            return;
+
+        JitVar value = JitVar::steal(
+            jit_coop_vec_extract(v->grad.index(), m_indices, m_count));
+        ADVariable *vo = state[m_output_indices[0]];
+        vo->accum(value, vo->size);
+    }
+
+    void backward() override {
+        lock_guard guard(state.lock);
+
+        const ADVariable *v = state[m_output_indices[0]];
+        if (!v->grad.valid())
+            return;
+
+        // Route the output's gradient components back to the positions they
+        // were extracted from. Elements referenced multiple times accumulate,
+        // unreferenced ones receive a zero gradient.
+        JitIndex *out_g = (JitIndex *) alloca(sizeof(JitIndex) * m_count),
+                 *src_g = (JitIndex *) alloca(sizeof(JitIndex) * m_source_length);
+        jit_coop_vec_unpack(v->grad.index(), m_count, out_g);
+
+        JitVar zero = scalar(m_backend, (VarType) v->type, 0.0);
+        for (uint32_t i = 0; i < m_source_length; ++i)
+            src_g[i] = jit_var_inc_ref(zero.index());
+
+        for (uint32_t i = 0; i < m_count; ++i) {
+            uint32_t j = m_indices[i];
+            // Addition against the zero literal is optimized away
+            uint32_t combined = jit_var_add(src_g[j], out_g[i]);
+            jit_var_dec_ref(src_g[j]);
+            src_g[j] = combined;
+        }
+
+        JitVar packed = JitVar::steal(jit_coop_vec_pack(m_source_length, src_g));
+        for (uint32_t i = 0; i < m_source_length; ++i)
+            jit_var_dec_ref(src_g[i]);
+        for (uint32_t i = 0; i < m_count; ++i)
+            jit_var_dec_ref(out_g[i]);
+
+        ADVariable *source = state[m_input_indices[0]];
+        source->accum(packed, source->size);
+    }
+
+    void add_output(uint32_t index) {
+        add_index(m_backend, index, false);
+
+        lock_guard guard(state.lock);
+        ad_var_inc_ref_int(index, state[index]);
+    }
+
+    const char *name() const override { return "extract"; }
+
+private:
+    uint32_t *m_indices;
+    uint32_t m_count, m_source_length;
+};
+
+/// Extract a subset of elements into a new, smaller cooperative vector
+uint64_t ad_coop_vec_extract(uint64_t index, const uint32_t *indices, uint32_t n) {
+    JitIndex jit_idx = jit_index(index);
+    ADIndex  ad_idx  = ad_index(index);
+
+    JitVar result = JitVar::steal(
+        jit_coop_vec_extract(jit_idx, indices, n));
+
+    const std::vector<Scope> &scopes = local_state.scopes;
+    if (!scopes.empty())
+        scopes.back().maybe_disable(ad_idx);
+
+    if (!ad_idx)
+        return result.release();
+
+    JitBackend backend = jit_set_backend(jit_idx).backend;
+    uint32_t length = jit_coop_vec_length(jit_idx);
+
+    ref<CoopVecExtract> op = new CoopVecExtract(indices, n, length);
+    op->add_index(backend, ad_idx, true);
+
+    uint64_t ad_result = ad_var_new(result.index());
+    op->add_output(::ad_index(ad_result));
+
+    if (unlikely(!ad_custom_op(op.get())))
+        ad_raise("ad_coop_vec_extract(): could not create CustomOp!");
+
+    return ad_result;
+}
+
+class CoopVecExtractSingle : public dr::detail::CustomOpBase {
+public:
+    CoopVecExtractSingle(uint32_t i, uint32_t source_length)
+        : m_i(i), m_source_length(source_length) { }
+
+    ~CoopVecExtractSingle() {
+        lock_guard guard(state.lock);
+        for (ADIndex index : m_output_indices)
+            ad_var_dec_ref_int(index, state[index]);
+    }
+
+    void forward() override {
+        lock_guard guard(state.lock);
+
+        const ADVariable *v = state[m_input_indices[0]];
+        if (!v->grad.valid())
+            return;
+
+        JitVar value = JitVar::steal(
+            jit_coop_vec_extract_single(v->grad.index(), m_i));
+        ADVariable *vo = state[m_output_indices[0]];
+        vo->accum(value, vo->size);
+    }
+
+    void backward() override {
+        lock_guard guard(state.lock);
+
+        const ADVariable *v = state[m_output_indices[0]];
+        if (!v->grad.valid())
+            return;
+
+        // The source gradient is zero except at the extracted position
+        JitIndex *src_g = (JitIndex *) alloca(sizeof(JitIndex) * m_source_length);
+
+        JitVar zero = scalar(m_backend, (VarType) v->type, 0.0);
+        for (uint32_t i = 0; i < m_source_length; ++i)
+            src_g[i] = i == m_i ? v->grad.index() : zero.index();
+
+        JitVar packed = JitVar::steal(jit_coop_vec_pack(m_source_length, src_g));
+
+        ADVariable *source = state[m_input_indices[0]];
+        source->accum(packed, source->size);
+    }
+
+    void add_output(uint32_t index) {
+        add_index(m_backend, index, false);
+
+        lock_guard guard(state.lock);
+        ad_var_inc_ref_int(index, state[index]);
+    }
+
+    const char *name() const override { return "extract_single"; }
+
+private:
+    uint32_t m_i, m_source_length;
+};
+
+/// Extract a single element from a cooperative vector as a regular variable
+uint64_t ad_coop_vec_extract_single(uint64_t index, uint32_t i) {
+    JitIndex jit_idx = jit_index(index);
+    ADIndex  ad_idx  = ad_index(index);
+
+    JitVar result = JitVar::steal(jit_coop_vec_extract_single(jit_idx, i));
+
+    const std::vector<Scope> &scopes = local_state.scopes;
+    if (!scopes.empty())
+        scopes.back().maybe_disable(ad_idx);
+
+    if (!ad_idx)
+        return result.release();
+
+    JitBackend backend = jit_set_backend(jit_idx).backend;
+    uint32_t length = jit_coop_vec_length(jit_idx);
+
+    ref<CoopVecExtractSingle> op = new CoopVecExtractSingle(i, length);
+    op->add_index(backend, ad_idx, true);
+
+    uint64_t ad_result = ad_var_new(result.index());
+    op->add_output(::ad_index(ad_result));
+
+    if (unlikely(!ad_custom_op(op.get())))
+        ad_raise("ad_coop_vec_extract_single(): could not create CustomOp!");
+
+    return ad_result;
+}
+
 /// Perform a unary operation on a cooperative vector
 uint64_t ad_coop_vec_unary_op(JitOp op, uint64_t i0) {
     JitVar result = JitVar::steal(

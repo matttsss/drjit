@@ -587,6 +587,41 @@ void export_coop_vec(nb::module_ &m) {
         .def_prop_ro("index", [](const CoopVec &v) { return v.m_index; })
         .def_prop_ro("type", [](const CoopVec &v) { return v.m_type; })
         .def("__len__", [](const CoopVec &v) { return v.m_size; })
+        .def("__getitem__",
+             [](const CoopVec &self, Py_ssize_t i) {
+                 if (i < 0)
+                     i += self.m_size;
+                 if (i < 0 || (size_t) i >= self.m_size)
+                     throw nb::index_error(
+                         "drjit.nn.CoopVec.__getitem__(): index out of range!");
+
+                 uint64_t elem = ad_coop_vec_extract_single(self.m_index, (uint32_t) i);
+
+                 nb::object result = nb::inst_alloc(self.m_type);
+                 supp(self.m_type).init_index(elem, inst_ptr(result));
+                 ad_var_dec_ref(elem);
+                 nb::inst_mark_ready(result);
+                 return result;
+             },
+             nb::sig("def __getitem__(self, arg: int, /) -> T"))
+        .def("__getitem__",
+             [](const CoopVec &self, nb::slice slice) {
+                 auto [start, stop, step, len] = slice.compute(self.m_size);
+                 DRJIT_MARK_USED(stop);
+                 
+                 if (len == 0)
+                     nb::raise("drjit.nn.CoopVec.__getitem__(): slice does "
+                               "not address any elements!");
+
+                 uint32_t *indices = (uint32_t *) alloca(sizeof(uint32_t) * len);
+                 for (size_t i = 0; i < len; ++i)
+                     indices[i] = (uint32_t) (start + (Py_ssize_t) i * step);
+
+                 return CoopVec(
+                     ad_coop_vec_extract(self.m_index, indices, (uint32_t) len),
+                     (uint32_t) len, self.m_type);
+             },
+             nb::sig("def __getitem__(self, arg: slice, /) -> CoopVec[T]"))
         .def("__abs__", &coopvec_abs_workaround)
         .def("__repr__",
              [](const CoopVec &v) {

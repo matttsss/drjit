@@ -148,6 +148,18 @@ Python lists:
    vec_ten = TensorXf(vec)
    vec_lst = list(vec)
 
+Individual elements or subsets of elements can be accessed using the standard
+Python indexing syntax. Indexing with an integer extracts a single component
+as a regular Dr.Jit array, while slicing produces a new (smaller) cooperative
+vector without leaving the opaque layout:
+
+.. code-block:: python
+
+   x = vec[0]        # Extract the first component
+   y = vec[-1]       # Extract the last component
+   sub = vec[1:3]    # 2D cooperative vector with components 1 and 2
+   rev = vec[::-1]   # Reversed copy of 'vec'
+
 Cooperative vectors are compatible with Dr.Jit's symbolic tracing
 infrastructure and may be used as state variables in
 :py:func:`drjit.while_loop` and :py:func:`drjit.if_stmt`.
