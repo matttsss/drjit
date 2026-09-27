@@ -13,6 +13,11 @@
 #include "base.h"
 #include "init.h"
 #include "meta.h"
+#include "while_loop.h"
+
+static uint64_t local_id_counter = 0;
+
+uint64_t Local::next_id() { return local_id_counter; }
 
 /// Abstract callback declaration used by traverse() below
 struct Callback {
@@ -26,7 +31,8 @@ static nb::object traverse(nb::handle tp, nb::handle v1, nb::handle v2,
 
 Local::Local(nb::handle dtype, size_t length, nb::handle value)
     : m_dtype(nb::borrow(dtype)), m_length(length),
-      m_value(value.is_none() ? nb::object() : nb::borrow(value)) {
+      m_value(value.is_none() ? nb::object() : nb::borrow(value)),
+      m_id(++local_id_counter) {
 
     /// Allocate variable arrays for the input PyTree
     struct LocalCallback : Callback {
@@ -75,7 +81,7 @@ Local::Local(nb::handle dtype, size_t length, nb::handle value)
     m_mask_tp = meta_get_type(m);
 }
 
-Local::Local(const Local &l) : m_dtype(l.m_dtype), m_length(l.m_length), m_value(l.m_value), m_backend(l.m_backend), m_index_tp(l.m_index_tp), m_mask_tp(l.m_mask_tp) {
+Local::Local(const Local &l) : m_dtype(l.m_dtype), m_length(l.m_length), m_value(l.m_value), m_backend(l.m_backend), m_index_tp(l.m_index_tp), m_mask_tp(l.m_mask_tp), m_id(++local_id_counter) {
     m_arrays.reserve(l.m_arrays.size());
     for (uint32_t index: l.m_arrays) {
         jit_var_inc_ref(index);
@@ -136,6 +142,8 @@ void Local::write(nb::handle value_, nb::handle index_, nb::handle mask_) {
         mask_.type().is(m_mask_tp) ? nb::borrow(mask_) : m_mask_tp(mask_);
     nb::object value =
         value_.type().is(m_dtype) ? nb::borrow(value_) : m_dtype(value_);
+
+    while_loop_on_local_write(this);
 
     /// Write to the variable arrays
     struct SetItemCallback : Callback {

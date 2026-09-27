@@ -12,6 +12,7 @@
 #include "while_loop.h"
 #include "base.h"
 #include "detail.h"
+#include "local.h"
 #include "tracker.h"
 #include "shape.h"
 #include "apply.h"
@@ -44,11 +45,66 @@ struct LoopState {
     /// Scratch set to detect aliasing in the state on each read
     tsl::robin_set<uint64_t, UInt64Hasher> seen;
 
+    /// Backend of the loop, and Local ID cutoff at loop start
+    JitBackend backend;
+    uint64_t local_id_cutoff;
+    LoopState *parent = nullptr;
+    /// Untracked outer Local variables modified during the current body pass
+    dr::vector<std::pair<Local *, dr::vector<uint32_t>>> newly_written_locals;
+
     LoopState(nb::tuple &&state, nb::callable &&cond, nb::callable &&body,
-              dr::vector<dr::string> &&labels, bool strict, bool check_size)
+              dr::vector<dr::string> &&labels, bool strict, bool check_size,
+              JitBackend backend)
         : state(std::move(state)), cond(std::move(cond)), body(std::move(body)),
-          labels(std::move(labels)), tracker(dr::TraverseRole::Loop, strict, check_size), active_size(1) { }
+          labels(std::move(labels)), tracker(dr::TraverseRole::Loop, strict, check_size),
+          active_size(1), backend(backend), local_id_cutoff(Local::next_id()) { }
+
+    ~LoopState() {
+        restore_newly_written_locals(false);
+    }
+
+    void restore_newly_written_locals(bool add_to_tracker) {
+        for (auto &[l, orig_arrays] : newly_written_locals) {
+            dr::vector<uint32_t> &cur = l->arrays();
+            for (uint32_t idx : cur)
+                jit_var_dec_ref(idx);
+            cur = std::move(orig_arrays);
+            if (add_to_tracker)
+                tracker.add_local(l);
+        }
+        newly_written_locals.clear();
+    }
 };
+
+static LoopState *current_symbolic_loop = nullptr;
+
+struct LoopRetryWithLocals { };
+
+void while_loop_on_local_write(Local *l) {
+    for (LoopState *ls = current_symbolic_loop; ls != nullptr; ls = ls->parent) {
+        if (ls->backend != l->backend() || l->id() > ls->local_id_cutoff ||
+            ls->tracker.has_local(l))
+            continue;
+
+        bool already_recorded = false;
+        for (const auto &kv : ls->newly_written_locals) {
+            if (kv.first == l) {
+                already_recorded = true;
+                break;
+            }
+        }
+        if (already_recorded)
+            continue;
+
+        dr::vector<uint32_t> orig_arrays;
+        orig_arrays.reserve(l->arrays().size());
+        for (uint32_t idx : l->arrays()) {
+            jit_var_inc_ref(idx);
+            orig_arrays.push_back(idx);
+        }
+        ls->newly_written_locals.emplace_back(l, std::move(orig_arrays));
+    }
+}
 
 /// Helper function to check that the type+size of the state variable returned
 /// by 'body()' is sensible
@@ -96,7 +152,27 @@ static uint32_t while_loop_cond_cb(void *p) {
 static void while_loop_body_cb(void *p) {
     nb::gil_scoped_acquire guard;
     LoopState *ls = (LoopState *) p;
-    ls->state = check_state("body", tuple_call(ls->body, ls->state), ls->state);
+
+    struct ScopedSymbolicLoop {
+        LoopState *ls;
+        bool active;
+        ScopedSymbolicLoop(LoopState *ls)
+            : ls(ls), active(jit_flag(JitFlag::SymbolicScope)) {
+            if (active) {
+                ls->parent = current_symbolic_loop;
+                current_symbolic_loop = ls;
+            }
+        }
+        ~ScopedSymbolicLoop() {
+            if (active)
+                current_symbolic_loop = ls->parent;
+        }
+    } loop_guard(ls);
+
+    nb::object next_state = tuple_call(ls->body, ls->state);
+    if (!ls->newly_written_locals.empty())
+        throw LoopRetryWithLocals();
+    ls->state = check_state("body", std::move(next_state), ls->state);
 };
 
 static void while_loop_read_cb(void *p, dr::vector<uint64_t> &indices) {
@@ -221,14 +297,26 @@ nb::tuple while_loop(nb::tuple state, nb::callable cond, nb::callable body,
         dr::unique_ptr<LoopState> ls(
             new LoopState(std::move(state), std::move(cond), std::move(body),
                           std::move(labels), strict,
-                          !compress.has_value() || !compress.value()));
+                          !compress.has_value() || !compress.value(), backend));
 
-        bool rv = ad_loop(backend, symbolic,
-                          compress.has_value() ? (int) compress.value() : -1,
-                          max_iterations.has_value() ? max_iterations.value() : 0,
-                          name_cstr, ls.get(), while_loop_read_cb,
-                          while_loop_write_cb, while_loop_cond_cb,
-                          while_loop_body_cb, while_loop_delete_cb, true);
+        bool rv = false;
+        while (true) {
+            try {
+                rv = ad_loop(backend, symbolic,
+                             compress.has_value() ? (int) compress.value() : -1,
+                             max_iterations.has_value() ? max_iterations.value() : 0,
+                             name_cstr, ls.get(), while_loop_read_cb,
+                             while_loop_write_cb, while_loop_cond_cb,
+                             while_loop_body_cb, while_loop_delete_cb, true);
+                break;
+            } catch (const LoopRetryWithLocals &) {
+                ls->state = nb::borrow<nb::tuple>(ls->tracker.restore(ls->labels));
+                ls->restore_newly_written_locals(true);
+                ls->active.reset();
+                ls->tracker.clear();
+                ls->dealiased = false;
+            }
+        }
 
         ls->tracker.restore(ls->labels);
 

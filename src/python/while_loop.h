@@ -9,6 +9,10 @@
     BSD-style license that can be found in the LICENSE.txt file.
 */
 
+#pragma once
+
 #include "common.h"
 
+class Local;
+extern void while_loop_on_local_write(Local *l);
 extern void export_while_loop(nb::module_&);

@@ -353,3 +353,56 @@ def test18_loop_carried_index_in_call(t):
     n = t(1, 2, 3, 4, 1, 2, 3, 4)
     r = dr.switch(t(0), [f], n, mode='symbolic')
     assert dr.all(r == n + 99)
+
+
+@pytest.test_arrays('jit,uint32,shape=(*)')
+def test19_untracked_local_in_symbolic_loop(t):
+    # Modifying an outer dr.Local inside a symbolic loop without explicitly
+    # including it in 'state' should automatically capture and update it.
+    n = t(2, 3)
+    local = dr.alloc_local(t, 4, value=t(0))
+
+    def body(i):
+        local.write(i + 1, i)
+        return (i + 1,)
+
+    dr.while_loop(
+        state=(t(0),),
+        cond=lambda i: i < n,
+        body=body,
+        mode='symbolic',
+    )
+
+    # 1. Reading from the Local outside the symbolic loop
+    assert dr.all(local[0] == t(1, 1))
+    assert dr.all(local[1] == t(2, 2))
+    assert dr.all(local[2] == t(0, 3))
+
+    # 2. Reading from the Local in a subsequent symbolic loop
+    _, total = dr.while_loop(
+        state=(t(0), t(0)),
+        cond=lambda k, total: k < n,
+        body=lambda k, total: (k + 1, total + local.read(k)),
+        mode='symbolic',
+    )
+    assert dr.all(total == t(3, 6))
+
+    # 3. Reading before writing to an untracked Local in the same symbolic loop
+    buf = dr.alloc_local(t, 4, value=t(1))
+
+    def rw_body(i, out):
+        val = buf.read(i)
+        buf.write(val + 3, i + 1)
+        return i + 1, out + val
+
+    _, out = dr.while_loop(
+        state=(t(0), t(0)),
+        cond=lambda i, out: i < t(2),
+        body=rw_body,
+        mode='symbolic',
+    )
+    assert dr.all(out == t(5))
+    assert dr.all(buf[1] == t(4))
+    assert dr.all(buf[2] == t(7))
+
+

@@ -140,6 +140,15 @@ struct VariableTracker::Impl {
     /// Per-tensor shape storage
     tsl::robin_map<dr::string, dr::vector<size_t>, StringHash> shapes;
 
+    /// Additional Local objects implicitly captured by a loop
+    dr::vector<Local *> extra_locals;
+
+    /// Set of Local objects encountered during state traversal
+    tsl::robin_set<const Local *, PointerHasher> locals;
+
+    /// Read or write a Local's underlying variable arrays
+    void traverse_local(Context &ctx, Local &local);
+
     /// Implementation detail of ``read()`` and ``write()``
     void traverse(Context &ctx, nb::handle state,
                   const dr::vector<dr::string> &labels,
@@ -286,6 +295,37 @@ void VariableTracker::write(nb::handle state,
 }
 
 
+void VariableTracker::Impl::traverse_local(Context &ctx, Local &local) {
+    locals.insert(&local);
+    dr::vector<uint32_t> &arrays = local.arrays();
+
+    if (!ctx.write) {
+        for (uint32_t idx: arrays) {
+            ctx.indices.push_back(ad_var_inc_ref(idx));
+            ctx.index_offset++;
+            #if defined(DEBUG_TRACKER)
+                printf("read '%s' (array): r%u\n", ctx.label.c_str(), (uint32_t) idx);
+            #endif
+        }
+    } else {
+        for (uint32_t &idx: arrays) {
+            if (ctx.index_offset >= ctx.indices.size())
+                nb::raise("internal error at state variable '%s': ran "
+                          "out of indices", ctx.label.c_str());
+
+            uint64_t idx_new = ctx.indices[ctx.index_offset++];
+            if (!ctx.preserve_dirty) {
+                jit_var_dec_ref(idx);
+                jit_var_inc_ref((uint32_t)idx_new);
+                #if defined(DEBUG_TRACKER)
+                    printf("write '%s' (array): r%u\n", ctx.label.c_str(), (uint32_t) idx_new);
+                #endif
+                idx = (uint32_t)idx_new;
+            }
+        }
+    }
+}
+
 /// Implementation detail of ``read()`` and ``write()``
 void VariableTracker::Impl::traverse(Context &ctx, nb::handle state_,
                                      const dr::vector<dr::string> &labels,
@@ -308,6 +348,9 @@ void VariableTracker::Impl::traverse(Context &ctx, nb::handle state_,
             traverse(ctx, state_[i]);
         }
     }
+
+    for (Local *l : extra_locals)
+        traverse_local(ctx, *l);
 
     if (ctx.index_offset != ctx.indices.size())
         nb::raise("internal error, only consumed %zu/%zu variable indices",
@@ -535,34 +578,7 @@ bool VariableTracker::Impl::traverse(Context &ctx, nb::handle h) {
             }
         }
     } else if (tp.is(local_type)) {
-        Local & local = nb::cast<Local&>(h);
-        dr::vector<uint32_t> &arrays = local.arrays();
-
-        if (!ctx.write) {
-            for (uint32_t idx: arrays) {
-                ctx.indices.push_back(ad_var_inc_ref(idx));
-                ctx.index_offset++;
-                #if defined(DEBUG_TRACKER)
-                    printf("read '%s' (array): r%u\n", ctx.label.c_str(), (uint32_t) idx);
-                #endif
-            }
-        } else {
-            for (uint32_t &idx: arrays) {
-                if (ctx.index_offset >= ctx.indices.size())
-                    nb::raise("internal error at state variable '%s': ran "
-                              "out of indices", ctx.label.c_str());
-
-                uint64_t idx_new = ctx.indices[ctx.index_offset++];
-                if (!ctx.preserve_dirty) {
-                    jit_var_dec_ref(idx);
-                    jit_var_inc_ref((uint32_t)idx_new);
-                    #if defined(DEBUG_TRACKER)
-                        printf("write '%s' (array): r%u\n", ctx.label.c_str(), (uint32_t) idx_new);
-                    #endif
-                    idx = (uint32_t)idx_new;
-                }
-            }
-        }
+        traverse_local(ctx, nb::cast<Local&>(h));
     } else if (tp.is(&PyTuple_Type)) {
         nb::tuple t = nb::borrow<nb::tuple>(h);
         size_t size = size_valid(v, ctx.label, h, nb::len(t));
@@ -725,6 +741,15 @@ void VariableTracker::Context::_traverse_read(uint64_t index, const char *, cons
 
 void VariableTracker::clear() {
     m_impl->state.clear();
+    m_impl->locals.clear();
+}
+
+void VariableTracker::add_local(Local *l) {
+    m_impl->extra_locals.push_back(l);
+}
+
+bool VariableTracker::has_local(const Local *l) const {
+    return m_impl->locals.find(l) != m_impl->locals.end();
 }
 
 void VariableTracker::verify_size(size_t size) {

@@ -132,6 +132,12 @@ public:
     /// Check that the PyTree is compatible with size ``size``.
     void verify_size(size_t size);
 
+    /// Register an implicitly captured Local variable to be tracked alongside state
+    void add_local( class Local *l);
+
+    /// Check whether a Local variable is already tracked by this instance
+    bool has_local(const class Local *l) const;
+
 private:
     VariableTracker(const VariableTracker &) = delete;
     VariableTracker(VariableTracker &&) = delete;

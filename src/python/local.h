@@ -48,6 +48,10 @@ public:
     const dr::vector<uint32_t> &arrays() const { return m_arrays; }
     dr::vector<uint32_t> &arrays() { return m_arrays; }
 
+    uint64_t id() const { return m_id; }
+    JitBackend backend() const { return m_backend; }
+    static uint64_t next_id();
+
 protected:
     nb::object m_dtype;
     size_t m_length;
@@ -56,6 +60,7 @@ protected:
     JitBackend m_backend;
     nb::handle m_index_tp;
     nb::handle m_mask_tp;
+    uint64_t m_id;
 };
 
 
