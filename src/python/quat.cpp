@@ -94,4 +94,11 @@ void export_quat(nb::module_ &m) {
     export_t<dr::MetalDiffArray<float>>(m);
     export_t<dr::MetalArray<float>>(m);
 #endif
+
+#if defined(DRJIT_ENABLE_VULKAN)
+    export_t<dr::VulkanDiffArray<float>>(m);
+    export_t<dr::VulkanDiffArray<double>>(m);
+    export_t<dr::VulkanArray<float>>(m);
+    export_t<dr::VulkanArray<double>>(m);
+#endif
 }

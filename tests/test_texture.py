@@ -836,7 +836,7 @@ def test24_set_tensor_ad(t, texture_type):
 def test25_eval_ad_migrated(t, texture_type, init):
     _skip_metal_f64(t, texture_type)
     # Test only makes sense for configurations where the texture can be migrated
-    can_migrate = dr.backend_v(t) in (dr.JitBackend.CUDA, dr.JitBackend.Metal) \
+    can_migrate = dr.backend_v(t) in (dr.JitBackend.CUDA, dr.JitBackend.Metal, dr.JitBackend.Vulkan) \
         and texture_type != "Texture2f64"
     if not can_migrate:
         return
@@ -1222,8 +1222,8 @@ def test34_uint8_eval_variants(t):
 def test35_uint8_grad(t, use_accel):
     # An 8-bit lookup is differentiable w.r.t. the (continuous) query position,
     # but its integer storage carries no gradient.
-    if use_accel and dr.backend_v(t) not in (dr.JitBackend.CUDA, dr.JitBackend.Metal):
-        pytest.skip("hardware textures require the CUDA or Metal backend")
+    if use_accel and dr.backend_v(t) not in (dr.JitBackend.CUDA, dr.JitBackend.Metal, dr.JitBackend.Vulkan):
+        pytest.skip("hardware textures require the CUDA, Metal, or Vulkan backend")
     mod = sys.modules[t.__module__]
     TexType = getattr(mod, 'Texture2f8u')
     UInt8 = getattr(mod, 'UInt8')
@@ -1679,7 +1679,7 @@ def test45_migrated_tensor_semantics(t, texture_type):
     # that reflects the texture contents at the time it is evaluated.
     # Evaluating it pins the contents, so an evaluated tensor is unaffected
     # by later updates of the texture.
-    if dr.backend_v(t) not in (dr.JitBackend.CUDA, dr.JitBackend.Metal):
+    if dr.backend_v(t) not in (dr.JitBackend.CUDA, dr.JitBackend.Metal, dr.JitBackend.Vulkan):
         pytest.skip("requires hardware textures")
     mod = sys.modules[t.__module__]
     TexType = getattr(mod, texture_type)
@@ -2194,7 +2194,7 @@ def _bc_tolerance(fmt, hw):
     return 3 if hw else 1
 
 def _is_hw(t):
-    return dr.backend_v(t) in (dr.JitBackend.CUDA, dr.JitBackend.Metal)
+    return dr.backend_v(t) in (dr.JitBackend.CUDA, dr.JitBackend.Metal, dr.JitBackend.Vulkan)
 
 
 @pytest.mark.parametrize("fmt", [4, 5, 7])

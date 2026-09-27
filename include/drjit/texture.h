@@ -34,6 +34,7 @@ template <typename Storage_, size_t Dimension> class Texture : public Traversabl
 public:
     static constexpr bool IsCUDA = is_cuda_v<Storage_>;
     static constexpr bool IsMetal = is_metal_v<Storage_>;
+    static constexpr bool IsVulkan = is_vulkan_v<Storage_>;
     static constexpr bool IsDynamic = is_dynamic_v<Storage_>;
     static constexpr bool IsHalf = std::is_same_v<scalar_t<Storage_>, drjit::half>;
     static constexpr bool IsSingle = std::is_same_v<scalar_t<Storage_>, float>;
@@ -42,7 +43,7 @@ public:
 
     // Half/single-precision float and normalized 8-bit hardware textures are supported
     static constexpr bool HasGPUTexture =
-        (IsHalf || IsSingle || IsUInt8) && (IsCUDA || IsMetal);
+        (IsHalf || IsSingle || IsUInt8) && (IsCUDA || IsMetal || IsVulkan);
 
     using Int32 = int32_array_t<Storage_>;
     using UInt32 = uint32_array_t<Storage_>;
@@ -1500,7 +1501,7 @@ private:
         // the device first when they might not be host-accessible)
         const uint8_t *src = (const uint8_t *) blocks.data();
         std::unique_ptr<uint8_t[]> host;
-        if constexpr (IsCUDA || IsMetal) {
+        if constexpr (IsCUDA || IsMetal || IsVulkan) {
             size_t size = chain_block_bytes(m_shape, n_levels);
             drjit::eval(blocks);
             host = std::make_unique<uint8_t[]>(size);
@@ -2166,10 +2167,10 @@ public:
     }
 
     // Number of JIT variables backing the texture: the sub-textures, plus the
-    // Metal sampler, plus (for writable CUDA textures) surface handles.
+    // Metal/Vulkan sampler, plus (for writable CUDA textures) surface handles.
     uint32_t tex_n_indices() const {
         uint32_t n_textures = 1 + ((uint32_t(m_channels) - 1) / 4);
-        uint32_t extra = IsMetal ? 1u : 0u;
+        uint32_t extra = (IsMetal || IsVulkan) ? 1u : 0u;
         if (IsCUDA && m_writable)
             extra += n_textures;
         return n_textures + extra;

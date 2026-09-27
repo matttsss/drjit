@@ -311,11 +311,17 @@ def _migrate_backend(value, target_backend):
 
     src_name = type(value).__module__ + '.' + type(value).__name__
     if target_backend == dr.JitBackend.Metal:
-        dst_name = src_name.replace('.llvm.', '.metal.').replace('.cuda.', '.metal.')
+        dst_b = '.metal.'
     elif target_backend == dr.JitBackend.CUDA:
-        dst_name = src_name.replace('.llvm.', '.cuda.').replace('.metal.', '.cuda.')
+        dst_b = '.cuda.'
+    elif target_backend == dr.JitBackend.Vulkan:
+        dst_b = '.vulkan.'
     else:
-        dst_name = src_name.replace('.cuda.', '.llvm.').replace('.metal.', '.llvm.')
+        dst_b = '.llvm.'
+
+    dst_name = src_name
+    for src_b in ('.llvm.', '.cuda.', '.metal.', '.vulkan.'):
+        dst_name = dst_name.replace(src_b, dst_b)
 
     import importlib
     parts = dst_name.rsplit('.', 1)
@@ -430,6 +436,10 @@ def new_drjit_scope():
         dr.detail.new_scope(dr.JitBackend.LLVM)
     if dr.has_backend(dr.JitBackend.CUDA):
         dr.detail.new_scope(dr.JitBackend.CUDA)
+    if dr.has_backend(dr.JitBackend.Metal):
+        dr.detail.new_scope(dr.JitBackend.Metal)
+    if dr.has_backend(dr.JitBackend.Vulkan):
+        dr.detail.new_scope(dr.JitBackend.Vulkan)
 
 def create_torch_wrapper():
     from torch import set_grad_enabled as torch_set_grad_enabled

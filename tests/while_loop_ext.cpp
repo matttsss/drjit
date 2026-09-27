@@ -102,6 +102,11 @@ NB_MODULE(while_loop_ext, m) {
     bind<JitBackend::Metal>(metal);
 #endif
 
+#if defined(DRJIT_ENABLE_VULKAN)
+    nb::module_ vulkan = m.def_submodule("vulkan");
+    bind<JitBackend::Vulkan>(vulkan);
+#endif
+
     m.def("scalar_loop", &simple_loop<uint32_t>);
     m.def("packet_loop", &packet_loop);
 }

@@ -85,7 +85,7 @@ def test09_inplace_numpy(t):
     backend = dr.backend_v(a)
     if backend == dr.JitBackend.LLVM or backend == dr.JitBackend.Invalid:
         assert a[0,0,0] == x[0,0,0]
-    elif backend == dr.JitBackend.CUDA:
+    elif backend in (dr.JitBackend.CUDA, dr.JitBackend.Metal, dr.JitBackend.Vulkan):
         assert a[0,0,0] == 0
         assert x[0,0,0] == 1
 
@@ -93,8 +93,8 @@ def test09_inplace_numpy(t):
 @pytest.test_arrays('tensor, -bool, -float16, -uint64, -uint32')
 def test10_inplace_torch(t):
     pytest.importorskip("torch")
-    if dr.backend_v(t) == dr.JitBackend.Metal:
-        pytest.skip("Metal .torch() copies to CPU (no zero-copy sharing)")
+    if dr.backend_v(t) in (dr.JitBackend.Metal, dr.JitBackend.Vulkan):
+        pytest.skip("Metal/Vulkan .torch() copies to CPU (no zero-copy sharing)")
     a = dr.empty(t, shape=(3, 3, 3))
     x = a.torch()
     x[0,0,0] = 1

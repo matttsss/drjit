@@ -24,6 +24,7 @@ endif()
 option(DRJIT_ENABLE_LLVM          "Build the Dr.Jit LLVM backend?" ON)
 option(DRJIT_ENABLE_CUDA          "Build the Dr.Jit CUDA backend?" ${DRJIT_ENABLE_CUDA_DEFAULT})
 option(DRJIT_ENABLE_METAL         "Build the Dr.Jit Metal backend? (Apple Silicon GPUs)" ${DRJIT_ENABLE_METAL_DEFAULT})
+option(DRJIT_ENABLE_VULKAN        "Build the Dr.Jit Vulkan backend?" OFF)
 option(DRJIT_ENABLE_AUTODIFF      "Build Dr.Jit automatic differentation library?" ON)
 option(DRJIT_ENABLE_PYTHON        "Build Python extension library?" ON)
 option(DRJIT_ENABLE_TESTS         "Build Dr.Jit test suite? (Warning, this takes *very* long to compile)" OFF)
@@ -121,6 +122,13 @@ if (DRJIT_ENABLE_METAL)
   message(STATUS "Dr.Jit: building the Metal backend.")
 else()
   message(STATUS "Dr.Jit: *not* building the Metal backend.")
+endif()
+
+if (DRJIT_ENABLE_VULKAN)
+  set(DRJIT_ENABLE_JIT TRUE)
+  message(STATUS "Dr.Jit: building the Vulkan backend.")
+else()
+  message(STATUS "Dr.Jit: *not* building the Vulkan backend.")
 endif()
 
 if (DRJIT_ENABLE_JIT)
@@ -285,6 +293,16 @@ if (DRJIT_MASTER_PROJECT)
         ${CMAKE_CURRENT_BINARY_DIR}/drjit/metal/ad.pyi
         ${CMAKE_CURRENT_BINARY_DIR}/drjit/metal/ad.py
         DESTINATION drjit/metal
+      )
+    endif()
+    if (DRJIT_ENABLE_VULKAN)
+      install(FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/drjit/vulkan/py.typed
+        ${CMAKE_CURRENT_BINARY_DIR}/drjit/vulkan/__init__.pyi
+        ${CMAKE_CURRENT_BINARY_DIR}/drjit/vulkan/__init__.py
+        ${CMAKE_CURRENT_BINARY_DIR}/drjit/vulkan/ad.pyi
+        ${CMAKE_CURRENT_BINARY_DIR}/drjit/vulkan/ad.py
+        DESTINATION drjit/vulkan
       )
     endif()
     install(FILES

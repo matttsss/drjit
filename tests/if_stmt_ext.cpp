@@ -77,6 +77,11 @@ NB_MODULE(if_stmt_ext, m) {
     bind<JitBackend::Metal>(metal);
 #endif
 
+#if defined(DRJIT_ENABLE_VULKAN)
+    nb::module_ vulkan = m.def_submodule("vulkan");
+    bind<JitBackend::Vulkan>(vulkan);
+#endif
+
     m.def("scalar_cond", &simple_cond<uint32_t>);
     m.def("packet_cond", &packet_cond);
 }

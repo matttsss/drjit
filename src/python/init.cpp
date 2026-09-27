@@ -808,7 +808,8 @@ nb::object import_ndarray(ArrayMeta m, PyObject *arg, vector<size_t> *shape_out,
     if (backend != JitBackend::None) {
         int32_t device_type = (backend == JitBackend::CUDA || backend == JitBackend::Metal)
                                   ? nb::device::cuda::value
-                                  : nb::device::cpu::value;
+                                  : (backend == JitBackend::Vulkan ? nb::device::vulkan::value
+                                                                   : nb::device::cpu::value);
 
         uint32_t index;
 

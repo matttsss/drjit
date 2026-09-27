@@ -120,7 +120,7 @@ static nb::ndarray<> dlpack(nb::handle_t<ArrayBase> h, bool force_cpu, nb::handl
             JitBackend backend = (JitBackend) s2.backend;
 
             JitVar value = JitVar::borrow(index);
-            if (force_cpu && (backend == JitBackend::CUDA || backend == JitBackend::Metal))
+            if (force_cpu && (backend == JitBackend::CUDA || backend == JitBackend::Metal || backend == JitBackend::Vulkan))
                 value = JitVar::steal(jit_var_migrate(value.index(),
                                                       JitBackend::None));
 
@@ -164,7 +164,7 @@ static nb::ndarray<> dlpack(nb::handle_t<ArrayBase> h, bool force_cpu, nb::handl
                 s2.init_index(ad_index | new_index, inst_ptr(tmp));
                 nb::inst_mark_ready(tmp);
 
-                if ((backend == JitBackend::CUDA || backend == JitBackend::Metal) && force_cpu)
+                if ((backend == JitBackend::CUDA || backend == JitBackend::Metal || backend == JitBackend::Vulkan) && force_cpu)
                     owner = std::move(tmp);
                 else
                     nb::inst_replace_move(owner, tmp);
@@ -287,9 +287,10 @@ void export_dlpack(nb::module_ &) {
               nb::handle dl_device, nb::handle copy) {
                const ArraySupplement &s = supp(h.type());
                bool is_metal = (JitBackend) s.backend == JitBackend::Metal;
-               // Metal arrays are exported as a host copy unless the consumer
-               // explicitly asks for the device representation
-               bool force_cpu = is_metal;
+               bool is_vulkan = (JitBackend) s.backend == JitBackend::Vulkan;
+               // Metal and Vulkan arrays are exported as a host copy unless the
+               // consumer explicitly asks for the Metal device representation
+               bool force_cpu = is_metal || is_vulkan;
 
                if (!dl_device.is_none()) {
                    int32_t requested = nb::cast<int32_t>(dl_device[0]);

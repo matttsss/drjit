@@ -4,6 +4,8 @@ import pytest
 import sys
 
 def skip_if_coopvec_not_supported(t):
+    if dr.backend_v(t) == dr.JitBackend.Vulkan:
+        pytest.skip("Vulkan backend does not support cooperative vectors")
     if dr.backend_v(t) == dr.JitBackend.CUDA:
         if dr.detail.cuda_version() < (12, 8):
             pytest.skip("CUDA driver does not support cooperative vectors (Driver R570) or later is required")
@@ -734,6 +736,7 @@ def test23_linear_layer_dtype(t):
 
 @pytest.test_arrays("jit,shape=(*),float16,diff")
 def test25_suspend_grad(t):
+    skip_if_coopvec_not_supported(t)
 
     x = t(1, 2, 3)
     y = t(2, 3, 4)

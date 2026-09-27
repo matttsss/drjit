@@ -44,3 +44,7 @@ if (DRJIT_ENABLE_METAL)
   target_compile_definitions(drjit-extra PRIVATE -DDRJIT_ENABLE_METAL)
 endif()
 
+if (DRJIT_ENABLE_VULKAN)
+  target_compile_definitions(drjit-extra PRIVATE -DDRJIT_ENABLE_VULKAN)
+endif()
+

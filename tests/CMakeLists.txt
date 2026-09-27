@@ -32,6 +32,10 @@ function(add_drjit_test NAME)
     target_compile_definitions(${NAME} PRIVATE -DDRJIT_ENABLE_METAL)
   endif()
 
+  if (DRJIT_ENABLE_VULKAN)
+    target_compile_definitions(${NAME} PRIVATE -DDRJIT_ENABLE_VULKAN)
+  endif()
+
   if (MSVC)
     message(STATUS ${CMAKE_CURRENT_BINARY_DIR})
     set_target_properties(${NAME} PROPERTIES

@@ -85,7 +85,7 @@ NAMESPACE_BEGIN(drjit)
  * representation.
  */
 struct ArrayMeta {
-    uint32_t backend       : 2;
+    uint32_t backend       : 3;
     uint32_t type          : 4;
     uint32_t ndim          : 3;
     uint32_t is_vector     : 1;
@@ -98,7 +98,7 @@ struct ArrayMeta {
     uint32_t is_class      : 1;
     uint32_t is_valid      : 1;
     uint32_t tsize_rel     : 7; // type size as multiple of 'talign'
-    uint32_t talign        : 7; // type alignment
+    uint32_t talign        : 6; // type alignment
     uint8_t shape[4];
 };
 
@@ -374,7 +374,7 @@ NB_INLINE void bind_init(ArrayBinding &b, nanobind::handle scope = {},
                      Size = sizeof(T),
                      RelSize = Size / Align;
 
-    static_assert(Align < 0x80 && RelSize < 0x80 && RelSize * Align == Size,
+    static_assert(Align < 0x40 && RelSize < 0x80 && RelSize * Align == Size,
                   "drjit::bind(): type is too large!");
 
     memset((void *) &b, 0, sizeof(ArrayBinding));

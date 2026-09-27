@@ -197,6 +197,11 @@ NB_MODULE(custom_type_ext, m) {
     bind<JitBackend::Metal>(metal);
 #endif
 
+#if defined(DRJIT_ENABLE_VULKAN)
+    nb::module_ vulkan = m.def_submodule("vulkan");
+    bind<JitBackend::Vulkan>(vulkan);
+#endif
+
     // Tests: DRJIT_STRUCT, traversal mechanism, array/struct stringification
     m.def("struct_to_string", []{
         using Float = dr::Packet<float, 4>;

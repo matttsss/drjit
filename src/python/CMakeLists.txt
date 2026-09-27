@@ -31,7 +31,7 @@ set(PY_FILES
   config.py __init__.py ast.py detail.py interop.py dda.py opt.py nn.py
   random.py hashgrid.py quad.py _sh_eval.py _reduce.py scalar/__init__.py
   scalar/ad.py llvm/__init__.py llvm/ad.py cuda/__init__.py cuda/ad.py
-  metal/__init__.py metal/ad.py)
+  metal/__init__.py metal/ad.py vulkan/__init__.py vulkan/ad.py)
 
 set(PY_FILES_OUT "")
 
@@ -106,6 +106,7 @@ nanobind_add_module(
   cuda.h        cuda.cpp cuda_ad.cpp
   green_context.h green_context.cpp
   metal.h       metal.cpp metal_ad.cpp
+  vulkan.h      vulkan.cpp vulkan_ad.cpp
 )
 
 
@@ -180,6 +181,10 @@ endif()
 
 if (DRJIT_ENABLE_METAL)
   target_compile_definitions(drjit-python PRIVATE -DDRJIT_ENABLE_METAL)
+endif()
+
+if (DRJIT_ENABLE_VULKAN)
+  target_compile_definitions(drjit-python PRIVATE -DDRJIT_ENABLE_VULKAN)
 endif()
 
 if (DRJIT_ENABLE_OPTIX)
@@ -265,6 +270,14 @@ if (NOT (DRJIT_SANITIZE_ASAN OR DRJIT_SANITIZE_UBSAN))
       ${DRJIT_PYTHON_DST_DIR}/metal/ad.pyi)
     list(APPEND DRJIT_MARKERS
       ${DRJIT_PYTHON_DST_DIR}/metal/py.typed)
+  endif()
+
+  if (DRJIT_ENABLE_VULKAN)
+    list(APPEND DRJIT_STUBS
+      ${DRJIT_PYTHON_DST_DIR}/vulkan/__init__.pyi
+      ${DRJIT_PYTHON_DST_DIR}/vulkan/ad.pyi)
+    list(APPEND DRJIT_MARKERS
+      ${DRJIT_PYTHON_DST_DIR}/vulkan/py.typed)
   endif()
 
   nanobind_add_stub(

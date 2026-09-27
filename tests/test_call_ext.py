@@ -13,6 +13,8 @@ def get_pkg(t):
         return m.cuda
     elif backend == dr.JitBackend.Metal:
         return m.metal
+    elif backend == dr.JitBackend.Vulkan:
+        return m.vulkan
 
 def cleanup(s):
     """Remove memory addresses and backend names from a string """
@@ -20,6 +22,7 @@ def cleanup(s):
     s = re.sub(r'\.llvm\.',r'.', s)
     s = re.sub(r'\.cuda\.',r'.', s)
     s = re.sub(r'\.metal\.',r'.', s)
+    s = re.sub(r'\.vulkan\.',r'.', s)
     return s
 
 @pytest.fixture(autouse=True)
@@ -497,7 +500,7 @@ def test14_array_call_self(t, symbolic, drjit_verbose, capsys):
     assert dr.all(c == d)
     transcript = capsys.readouterr().out
     if symbolic:
-        if dr.backend_v(t) == dr.JitBackend.LLVM:
+        if dr.backend_v(t) in (dr.JitBackend.LLVM, dr.JitBackend.Vulkan):
             assert transcript.count('%self') > 0
         elif dr.backend_v(t) == dr.JitBackend.Metal:
             assert transcript.count('= self;') > 0

@@ -840,4 +840,13 @@ template DRJIT_EXTRA_EXPORT MetalArray<half> Resampler::resample_bwd(const Metal
 template DRJIT_EXTRA_EXPORT MetalArray<float> Resampler::resample_bwd(const MetalArray<float> &, uint32_t) const;
 #endif
 
+#if defined(DRJIT_ENABLE_VULKAN)
+template DRJIT_EXTRA_EXPORT VulkanArray<half> Resampler::resample_fwd(const VulkanArray<half> &, uint32_t) const;
+template DRJIT_EXTRA_EXPORT VulkanArray<float> Resampler::resample_fwd(const VulkanArray<float> &, uint32_t) const;
+template DRJIT_EXTRA_EXPORT VulkanArray<double> Resampler::resample_fwd(const VulkanArray<double> &, uint32_t) const;
+template DRJIT_EXTRA_EXPORT VulkanArray<half> Resampler::resample_bwd(const VulkanArray<half> &, uint32_t) const;
+template DRJIT_EXTRA_EXPORT VulkanArray<float> Resampler::resample_bwd(const VulkanArray<float> &, uint32_t) const;
+template DRJIT_EXTRA_EXPORT VulkanArray<double> Resampler::resample_bwd(const VulkanArray<double> &, uint32_t) const;
+#endif
+
 NAMESPACE_END(drjit)

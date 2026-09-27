@@ -20,10 +20,11 @@
 
 static const char *backend_name(JitBackend backend) {
     switch (backend) {
-        case JitBackend::CUDA:  return "CUDA";
-        case JitBackend::LLVM:  return "LLVM";
-        case JitBackend::Metal: return "Metal";
-        default:                return "scalar";
+        case JitBackend::CUDA:   return "CUDA";
+        case JitBackend::LLVM:   return "LLVM";
+        case JitBackend::Metal:  return "Metal";
+        case JitBackend::Vulkan: return "Vulkan";
+        default:                 return "scalar";
     }
 }
 

@@ -361,4 +361,9 @@ NB_MODULE(call_ext, m) {
     nb::module_ metal = m.def_submodule("metal");
     bind<JitBackend::Metal>(metal);
 #endif
+
+#if defined(DRJIT_ENABLE_VULKAN)
+    nb::module_ vulkan = m.def_submodule("vulkan");
+    bind<JitBackend::Vulkan>(vulkan);
+#endif
 }

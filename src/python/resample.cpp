@@ -117,6 +117,26 @@ void export_resample(nb::module_ &) {
               (dr::MetalArray<float>(Resampler::*)(const dr::MetalArray<float> &, uint32_t) const) &Resampler::resample_bwd,
               "target"_a.noconvert(), "stride"_a)
 #endif
+#if defined(DRJIT_ENABLE_VULKAN)
+         .def("resample_fwd",
+              (dr::VulkanArray<dr::half>(Resampler::*)(const dr::VulkanArray<dr::half> &, uint32_t) const) &Resampler::resample_fwd,
+              "source"_a.noconvert(), "stride"_a)
+         .def("resample_fwd",
+              (dr::VulkanArray<float>(Resampler::*)(const dr::VulkanArray<float> &, uint32_t) const) &Resampler::resample_fwd,
+              "source"_a.noconvert(), "stride"_a)
+         .def("resample_fwd",
+              (dr::VulkanArray<double>(Resampler::*)(const dr::VulkanArray<double> &, uint32_t) const) &Resampler::resample_fwd,
+              "source"_a.noconvert(), "stride"_a)
+         .def("resample_bwd",
+              (dr::VulkanArray<dr::half>(Resampler::*)(const dr::VulkanArray<dr::half> &, uint32_t) const) &Resampler::resample_bwd,
+              "target"_a.noconvert(), "stride"_a)
+         .def("resample_bwd",
+              (dr::VulkanArray<float>(Resampler::*)(const dr::VulkanArray<float> &, uint32_t) const) &Resampler::resample_bwd,
+              "target"_a.noconvert(), "stride"_a)
+         .def("resample_bwd",
+              (dr::VulkanArray<double>(Resampler::*)(const dr::VulkanArray<double> &, uint32_t) const) &Resampler::resample_bwd,
+              "target"_a.noconvert(), "stride"_a)
+#endif
          .def("resample_fwd",
               (dr::DynamicArray<dr::half>(Resampler::*)(const dr::DynamicArray<dr::half> &, uint32_t) const) &Resampler::resample_fwd,
               "source"_a.noconvert(), "stride"_a)

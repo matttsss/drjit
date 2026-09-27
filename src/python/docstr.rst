@@ -4734,6 +4734,10 @@
 
     Dr.Jit backend targeting Apple Silicon GPUs using Metal Shading Language (MSL).
 
+.. topic:: JitBackend_Vulkan
+
+    Dr.Jit backend targeting Vulkan GPUs using SPIR-V IR.
+
 .. topic:: VarType
 
     List of possible scalar array types (not all of them are supported).

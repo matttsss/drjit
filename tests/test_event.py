@@ -3,7 +3,7 @@ import pytest
 import sys
 
 @pytest.skip_on(RuntimeError, "jit_event_create(): invalid backend")
-@pytest.test_arrays("is_jit, float32, shape=(*), -metal")
+@pytest.test_arrays("is_jit, float32, shape=(*), -metal, -vulkan")
 def test01_event_basic(t):
     """Test basic event creation, recording, and synchronization"""
     mod = sys.modules[t.__module__]
@@ -23,7 +23,7 @@ def test01_event_basic(t):
 
 
 @pytest.skip_on(RuntimeError, "jit_event_create(): invalid backend")
-@pytest.test_arrays("is_jit, float32, shape=(*), -metal")
+@pytest.test_arrays("is_jit, float32, shape=(*), -metal, -vulkan")
 def test02_event_timing(t):
     """Test event timing functionality"""
     mod = sys.modules[t.__module__]
@@ -46,7 +46,7 @@ def test02_event_timing(t):
 
 
 @pytest.skip_on(RuntimeError, "jit_event_create(): invalid backend")
-@pytest.test_arrays("is_jit, float32, shape=(*)")
+@pytest.test_arrays("is_jit, float32, shape=(*), -metal, -vulkan")
 def test03_event_timing_disabled(t):
     """Test that elapsed_time fails when timing is disabled"""
     mod = sys.modules[t.__module__]

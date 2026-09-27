@@ -35,6 +35,11 @@ NB_MODULE(local_ext, m) {
     bind<dr::MetalArray<float>>(metal);
 #endif
 
+#if defined(DRJIT_ENABLE_VULKAN)
+    nb::module_ vulkan = m.def_submodule("vulkan");
+    bind<dr::VulkanArray<float>>(vulkan);
+#endif
+
     nb::module_ scalar = m.def_submodule("scalar");
     bind<float>(scalar);
 }

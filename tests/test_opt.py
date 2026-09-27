@@ -400,7 +400,7 @@ def test11_adamw(t):
     assert dr.allclose(xv, ref)
 
 
-@pytest.test_arrays("is_diff,float32,is_tensor,is_jit")
+@pytest.test_arrays("is_diff,float32,is_tensor,is_jit,-vulkan")
 def test11b_muon(t):
     # Regression test for the Muon optimizer on a 2x2 tensor. The
     # reference values below were observed from this implementation and

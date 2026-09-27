@@ -42,6 +42,14 @@ def _seed(*key):
     return abs(hash(key)) & 0xffff
 
 
+@pytest.fixture(autouse=True)
+def _skip_vulkan(request):
+    if "t" in request.fixturenames:
+        t = request.getfixturevalue("t")
+        if dr.backend_v(t) == dr.JitBackend.Vulkan:
+            pytest.skip("Batched GEMM is not supported on the Vulkan backend")
+
+
 # =========================================================================
 # Section A: baseline 2-D correctness
 # =========================================================================

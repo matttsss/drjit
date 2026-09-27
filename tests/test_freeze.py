@@ -7,8 +7,8 @@ import sys
 
 def skip_if_coopvec_not_supported(t):
     backend = dr.backend_v(t)
-    if backend == dr.JitBackend.Metal:
-        pytest.skip("Metal does not support cooperative vectors")
+    if backend in (dr.JitBackend.Metal, dr.JitBackend.Vulkan):
+        pytest.skip(f"{backend} does not support cooperative vectors")
     elif backend == dr.JitBackend.CUDA:
         if dr.detail.cuda_version() < (12, 8):
             pytest.skip("CUDA driver does not support cooperative vectors (Driver R570) or later is required")
@@ -723,6 +723,8 @@ def get_pkg(t):
         return m.cuda
     elif backend == dr.JitBackend.Metal:
         return getattr(m, "metal", None)
+    elif backend == dr.JitBackend.Vulkan:
+        return getattr(m, "vulkan", None)
 
 
 @pytest.mark.parametrize("symbolic", [True])
@@ -2902,8 +2904,8 @@ def test71b_texture_write(t, auto_opaque):
     # CUDA, the per-sub-texture surface handles exposed via jit_tex_get_indices)
     # must be captured and rebound on replay, and the hardware read-back must
     # not depend on host-side migration state that replay does not re-run.
-    if dr.backend_v(t) not in (dr.JitBackend.CUDA, dr.JitBackend.Metal):
-        pytest.skip("hardware texture writes require the CUDA or Metal backend")
+    if dr.backend_v(t) not in (dr.JitBackend.CUDA, dr.JitBackend.Metal, dr.JitBackend.Vulkan):
+        pytest.skip("hardware texture writes require the CUDA, Metal, or Vulkan backend")
     mod = sys.modules[t.__module__]
     Texture2f = mod.Texture2f
     Float = mod.Float32
@@ -3961,7 +3963,7 @@ def test103_rng(t, auto_opaque):
 
 
 @pytest.mark.parametrize("auto_opaque", [False, True])
-@pytest.test_arrays("float32, jit, shape=(*)")
+@pytest.test_arrays("float32, jit, shape=(*), -vulkan")
 def test104_batched_gemm(t, auto_opaque):
     """Tests that ``dr.matmul`` on tensors can be recorded and replayed."""
     import numpy as np
@@ -3982,7 +3984,7 @@ def test104_batched_gemm(t, auto_opaque):
 
 
 @pytest.mark.parametrize("auto_opaque", [False, True])
-@pytest.test_arrays("float32, jit, shape=(*)")
+@pytest.test_arrays("float32, jit, shape=(*), -vulkan")
 def test105_batched_gemm_varying_batch(t, auto_opaque):
     """Replays ``dr.matmul`` on 3-D tensors with varying leading batch
     dim. The FrozenFunction input key only hashes the inner shape
@@ -4168,6 +4170,8 @@ def get_custom_type_pkg(t):
         return m.cuda
     elif backend == dr.JitBackend.Metal:
         return getattr(m, "metal", None)
+    elif backend == dr.JitBackend.Vulkan:
+        return getattr(m, "vulkan", None)
 
 
 @pytest.test_arrays("float32, jit, -is_diff, shape=(*)")
